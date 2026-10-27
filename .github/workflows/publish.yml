@@ -23,8 +23,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install container deps (fontconfig, unzip)
-        run: apt-get update -qq && apt-get install -y -qq fontconfig libfontconfig1 unzip
+      - name: Install container deps (fontconfig, unzip, curl)
+        run: apt-get update -qq && apt-get install -y -qq fontconfig libfontconfig1 unzip curl ca-certificates
 
       - name: Install web export templates
         run: |

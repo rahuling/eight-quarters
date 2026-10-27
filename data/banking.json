@@ -363,7 +363,8 @@
             },
             "xp": 10
           },
-          "seed": null
+          "seed": null,
+          "desc": "One team builds everything. Consistent, governed, slow: every request waits in your queue, and speed becomes your problem to defend."
         },
         {
           "label": "FEDERATE - BUs build, platform owns the seams",
@@ -375,7 +376,8 @@
             },
             "xp": 10
           },
-          "seed": "shadow_prod"
+          "seed": "shadow_prod",
+          "desc": "BUs build on platform rails; you own the seams - deployment, policies, cost. Faster delivery, and the seams need tending."
         }
       ],
       "lesson": "There is no right answer - only the one that fits this organisation's culture and maturity."
@@ -399,7 +401,8 @@
             },
             "flag": "gov_in"
           },
-          "seed": null
+          "seed": null,
+          "desc": "Access, masking, lineage and audit apply automatically. Every answer carries receipts by default. The platform becomes the only path - and the queue is yours to run."
         },
         {
           "label": "GOVERN AROUND IT - process, review, flexibility",
@@ -411,7 +414,8 @@
             },
             "flag": "gov_around"
           },
-          "seed": "masking_mismatch"
+          "seed": "masking_mismatch",
+          "desc": "BUs keep their speed and flexibility. Governance now depends on humans following a process - and two BUs may end up masking the same column differently."
         }
       ],
       "lesson": "Governance in the platform applies automatically; around it, it depends on humans following process."
@@ -434,7 +438,8 @@
               "cruz": -1
             }
           },
-          "seed": null
+          "seed": null,
+          "desc": "One pattern per source type: naming, classification, quality checks and deployment inherited from the template, not negotiated per request."
         },
         {
           "label": "LET BUS CHOOSE - speed over uniformity",
@@ -445,7 +450,8 @@
             },
             "shadow": 10
           },
-          "seed": "shadow_prod"
+          "seed": "shadow_prod",
+          "desc": "Each BU picks its own tools. Faster starts now - and seven tools doing the same job, onboarding measured in months, unpredictable cost later."
         }
       ],
       "lesson": "Standardize patterns, not tools - a standard that does not fit the use case is worse than none."
@@ -467,7 +473,8 @@
             },
             "rival": -10
           },
-          "seed": null
+          "seed": null,
+          "desc": "Invest in the invisible: governance, identity, lineage. Agents shipped later stand on ground that can answer for them."
         },
         {
           "label": "AI FIRST - demo now, foundation later",
@@ -477,7 +484,8 @@
             },
             "flag": "ai_hasty"
           },
-          "seed": "agent_wrong_answer"
+          "seed": "agent_wrong_answer",
+          "desc": "Ship the demo this quarter. The foundation debt stays on the books - and every agent you deploy inherits it."
         }
       ],
       "lesson": "Every agent inherits the ambiguities of the estate it stands on."

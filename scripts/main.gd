@@ -33,6 +33,7 @@ var intro_clicked := false
 var intro_skip := false
 var intro_hint: Label = null
 var intro_run := 0
+var overlay: Control = null
 
 func _ready() -> void:
 	bg_rect = ColorRect.new()
@@ -394,6 +395,7 @@ func _rebuild_hud(box: VBoxContainer) -> void:
 	row.add_child(_label("CREW %d" % int(g.crew), 10, COL_OAT, true))
 	row.add_child(_label("PC %d/%d" % [g.pc, g.PC_CAP], 10, COL_LAVA, true))
 	row.add_child(_label("STANDING L%d %s" % [g.standing_level(), g.standing_title().to_upper()], 10, COL_AMBER, true))
+	row.add_child(_button("? HELP", 8, _help_view, COL_BLUE))
 	tv.add_child(row)
 	tv.add_child(_label("MANDATE: %s   (CLOCK: Q%d)" % [g.mandate["text"], g.clock_due], 15, COL_AMBER))
 	if g.clock_due - g.quarter <= 1:
@@ -496,16 +498,13 @@ func _rebuild_actions(box: VBoxContainer) -> void:
 	# fork
 	for f in g.deck["forks"]:
 		if f["quarter"] == g.quarter and not g.fork_done.has(f["id"]):
-			v.add_child(_label("FORK: %s" % f["title"], 14, COL_LAVA, true))
-			var fl := _label("DESIGN POINT - from '%s': %s" % [f["article"], f.get("lesson", "")], 12, COL_MUT)
-			fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			v.add_child(fl)
-			var f_id: String = f["id"]
-			for i in f["options"].size():
-				var idx: int = i
-				var opt: Dictionary = f["options"][i]
-				var btxt := "> %s   [pc %d, $%dk]" % [opt["label"], int(opt["effects"].get("pc", 0)), abs(int(opt["effects"].get("budget", 0)))]
-				v.add_child(_button(btxt, 12, func(): _do_fork(f_id, idx), COL_OAT))
+			v.add_child(_label("DECISION REQUIRED", 9, COL_LAVA, true))
+			v.add_child(_label("FORK: %s" % f["title"], 14, COL_OAT, true))
+			var open_row := _hbox(10)
+			var f_ref: Dictionary = f
+			open_row.add_child(_button("OPEN DECISION >>", 10, func(): _decision_view(f_ref), COL_LAVA))
+			open_row.add_child(_label("both options, full effects and seeded consequences shown", 12, COL_MUT))
+			v.add_child(open_row)
 	# meeting
 	if not g.meeting_used:
 		var deal: Dictionary = g.featured_meeting()
@@ -513,9 +512,18 @@ func _rebuild_actions(box: VBoxContainer) -> void:
 			v.add_child(_label("FEATURED MEETING: %s" % deal["seat"].to_upper(), 14, COL_BLUE, true))
 			v.add_child(_label("you commit: %s" % deal["give"], 13, COL_TXT()))
 			v.add_child(_label("you get:    %s" % deal["get"], 13, COL_TXT()))
+			var pr: Dictionary = deal["promise"]
+			var pl := _label("PROMISE: %s - due Q%d. %s" % [pr["text"], pr["due"], _promise_miss_text(pr)], 12, COL_MUT)
+			pl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			v.add_child(pl)
+			var gain := ", ".join(_fx_summary(deal["effects"]))
+			if gain != "":
+				var gl := _label("also gains: " + gain, 12, COL_GREEN)
+				gl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+				v.add_child(gl)
 			var mrow := _hbox(10)
 			mrow.add_child(_button("SEAL IT (PC %d)" % deal["pc"], 9, func(): _do_meeting(deal), COL_GREEN))
-			mrow.add_child(_label("walk away: nothing happens, nothing is promised", 12, COL_MUT))
+			mrow.add_child(_label("walk away: nothing promised, nothing owed", 12, COL_MUT))
 			v.add_child(mrow)
 	else:
 		v.add_child(_label("Meeting slot used this quarter.", 12, COL_MUT))
@@ -530,12 +538,182 @@ func _rebuild_actions(box: VBoxContainer) -> void:
 	p.add_child(v)
 	box.add_child(p)
 
+func _clear_overlay() -> void:
+	if overlay != null and is_instance_valid(overlay):
+		overlay.queue_free()
+	overlay = null
+
+func _fx_summary(e: Dictionary) -> Array:
+	var out: Array = []
+	if e.has("budget"):
+		out.append(("$%dk" % int(e["budget"])) if int(e["budget"]) >= 0 else ("- $%dk" % -int(e["budget"])))
+	if e.has("pc"):
+		out.append(("PC +%d" % int(e["pc"])) if int(e["pc"]) >= 0 else ("PC -%d" % -int(e["pc"])))
+	if e.has("audit"):
+		out.append(("audit +%d" % int(e["audit"])) if int(e["audit"]) >= 0 else ("audit -%d" % -int(e["audit"])))
+	if e.has("scandal"):
+		out.append("+%d board scandal(s)" % int(e["scandal"]))
+	if e.has("shadow"):
+		out.append(("shadow-it +%d" % int(e["shadow"])) if int(e["shadow"]) >= 0 else ("shadow-it -%d" % -int(e["shadow"])))
+	if e.has("rival"):
+		out.append(("Aguilar +%d" % int(e["rival"])) if int(e["rival"]) >= 0 else ("Aguilar -%d" % -int(e["rival"])))
+	if e.has("xp"):
+		out.append(("standing +%d" % int(e["xp"])) if int(e["xp"]) >= 0 else ("standing %d" % int(e["xp"])))
+	if e.has("points"):
+		out.append("+%d decisions" % int(e["points"]))
+	if e.has("progress"):
+		for t in e["progress"]:
+			out.append("%s +%d level(s)" % [str(t).to_upper(), int(e["progress"][t])])
+	if e.has("progress_loss"):
+		for t in e["progress_loss"]:
+			out.append("%s -%d level(s)" % [str(t).to_upper(), int(e["progress_loss"][t])])
+	if e.has("adoption"):
+		for b in e["adoption"]:
+			out.append("%s -> %s" % [str(b).to_upper(), str(e["adoption"][b])])
+	if e.has("trust"):
+		for s in e["trust"]:
+			var sname := str(s).to_upper()
+			for seat in GameState.deck["seats"]:
+				if seat["id"] == s:
+					sname = str(seat["name"])
+			out.append("%s %+d trust" % [sname, int(e["trust"][s])])
+	if e.has("flag"):
+		out.append("unlocks: %s" % str(e["flag"]).replace("_", " "))
+	if e.has("crew_loss"):
+		out.append("platform team halved")
+	return out
+
+func _promise_miss_text(pr: Dictionary) -> String:
+	var c: Dictionary = pr["check"]
+	match c["type"]:
+		"track":
+			return "Miss = %s must reach L%d or trust pays." % [str(c["track"]).to_upper(), int(c["level"])]
+		"attributed":
+			return "Miss = attribution under %d%% at the due quarter costs trust." % int(c["value"])
+		"adoption":
+			return "Miss = %s not %s costs trust." % [str(c["bu"]).to_upper(), str(c["state"])]
+		"flag":
+			return "Miss = the commitment stays on file, unredeemed."
+		_:
+			return "Miss = trust -1, audit -5."
+
 func rebuild_game() -> void:
 	if game_layer == null or game_box == null:
 		_build_game_layer()
 		return
 	_clear(game_box)
+	_clear_overlay()
 	_populate_game()
+
+func _decision_view(f: Dictionary) -> void:
+	var g := GameState
+	_clear_overlay()
+	overlay = Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	game_layer.add_child(overlay)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.74)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dim)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(m, 18)
+	overlay.add_child(margin)
+	var v := _vbox(8)
+	margin.add_child(v)
+	v.add_child(_label("A STRUCTURAL DECISION - the consequences land 2 to 6 quarters from now", 9, COL_LAVA, true))
+	v.add_child(_label(f["title"], 17, COL_OAT, true))
+	var dp := _label("DESIGN POINT - from '%s': %s" % [f["article"], f.get("lesson", "")], 12, COL_MUT)
+	dp.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	v.add_child(dp)
+	var opts := _hbox(14)
+	opts.size_flags_vertical = Control.SIZE_EXPAND_FILL
+	v.add_child(opts)
+	for i in f["options"].size():
+		var idx: int = i
+		var opt: Dictionary = f["options"][i]
+		var card := _panel()
+		card.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		opts.add_child(card)
+		var cv := _vbox(6)
+		card.add_child(cv)
+		var ol := _label(opt["label"], 13, COL_OAT, true)
+		ol.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		cv.add_child(ol)
+		if opt.has("desc"):
+			var dl := _label(opt["desc"], 13, COL_TXT())
+			dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			cv.add_child(dl)
+		cv.add_child(_label("EFFECTS:", 8, COL_AMBER, true))
+		for fx in _fx_summary(opt["effects"]):
+			cv.add_child(_label("- " + fx, 12, COL_TXT()))
+		var seed_name = opt.get("seed", null)
+		if seed_name != null:
+			for e in g.deck["events"]:
+				if e["id"] == seed_name:
+					var sl := _label("SEEDS: '%s' - it will land in a later quarter." % e["title"], 12, COL_LAVA)
+					sl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+					cv.add_child(sl)
+					break
+		var spacer := Control.new()
+		spacer.size_flags_vertical = Control.SIZE_EXPAND_FILL
+		cv.add_child(spacer)
+		cv.add_child(_button("CHOOSE THIS", 10, func(): _choose_fork(f["id"], idx), COL_LAVA))
+	v.add_child(_label("HELP: forks are the structural bets - centralize or federate, govern in or around, standardize or not, foundation or AI. No option is 'correct'; each one seeds different events and changes which seats trust you. Costs are political capital and budget; both are visible above.", 12, COL_MUT))
+	var hl := v.get_child(v.get_child_count() - 1)
+	hl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+func _choose_fork(fork_id: String, option_idx: int) -> void:
+	GameState.make_fork(fork_id, option_idx)
+	rebuild_game()
+
+func _help_view() -> void:
+	_clear_overlay()
+	overlay = Control.new()
+	overlay.set_anchors_preset(Control.PRESET_FULL_RECT)
+	game_layer.add_child(overlay)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.74)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	overlay.add_child(center)
+	var pp := _paper_panel(30)
+	pp.custom_minimum_size = Vector2(640, 0)
+	center.add_child(pp)
+	var v := _vbox(8)
+	pp.add_child(v)
+	var head := _type_label("HOW THIS WORKS", 20)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(head)
+	v.add_child(HSeparator.new())
+	var sections := [
+		["THE LOOP", "Each quarter: allocate budget and crew, hold one featured meeting, take the quarter's decisions, resolve what comes due, read the results. Eight quarters, one sitting."],
+		["CURRENCIES", "POLITICAL CAPITAL buys decisions and deals. It caps at 8 - spend it or lose it. BUDGET builds tracks. CREW builds them. All three are shown in the HUD."],
+		["TRACKS", "Governance, Identity and Paved Road unlock capabilities for the estate. Agent-Readiness is gated: you cannot build it without the foundation - ship early and the wrong-answer event picks the moment."],
+		["MAKING CHOICES", "FORKS are structural bets: what you pick seeds future events and changes which seats trust you. MEMOS (events) demand a response - the seed note tells you which past decision caused them."],
+		["PROMISES", "Meeting deals become dated promises. Met: trust +1 and the deal's effects. Missed: trust -1, audit -5, and it stays on file."],
+		["METERS", "Adoption = BUs building on the platform. Shadow-IT = work routing around you. Audit patience = the regulator's mood. Aguilar = the rival's instance gaining on you."],
+		["FAILING", "You lose the job (2 scandals + standing 0), the budget (adoption under 1 BU), the platform (Aguilar 100), or the agents (4 scandals). Every one is defensible in hindsight."],
+		["SCORING", "Decisions Changed is the score AND your budget leverage with the CFO. Certified data, receipts and joint ownership multiply it."],
+	]
+	for s in sections:
+		v.add_child(_type_label(s[0], 14, Color("8c2a20")))
+		var b := _type_label(s[1], 14)
+		b.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		v.add_child(b)
+	var btnrow := _hbox(0)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btnrow.add_child(sp)
+	btnrow.add_child(_paper_button("CLOSE", 14, _close_help, COL_STAMPB))
+	v.add_child(btnrow)
+
+func _close_help() -> void:
+	_clear_overlay()
+	rebuild_game()
 
 func _populate_game() -> void:
 	var g := GameState
@@ -604,6 +782,10 @@ func _event_modal(parent: Control) -> void:
 		var b := _paper_button("[ ]  " + resp["label"] + locktxt, 14, func(): _do_event(idx), COL_PINK if avail else COL_PDIM)
 		b.disabled = not avail
 		v.add_child(b)
+		var chiprow := _hbox(8)
+		for fx in _fx_summary(resp["effects"]):
+			chiprow.add_child(_type_label("- " + fx, 12, COL_PDIM))
+		v.add_child(chiprow)
 	var stamprow := _hbox(0)
 	var spacer := Control.new()
 	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -765,7 +947,10 @@ func _smoke(deck: Dictionary) -> void:
 		guard += 1
 		for f in GameState.deck["forks"]:
 			if f["quarter"] == GameState.quarter and not GameState.fork_done.has(f["id"]):
+				_decision_view(f)
+				await _shot("decision")
 				GameState.make_fork(f["id"], 0)
+				rebuild_game()
 		if not GameState.current_event.is_empty():
 			rebuild_game()
 			await _shot("event")

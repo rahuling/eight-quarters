@@ -383,6 +383,7 @@ func end_quarter() -> Dictionary:
 	if not ev.is_empty():
 		current_event = ev
 		report["event"] = ev["title"]
+		report["lesson"] = ev.get("lesson", "")
 	# 5. debts tick
 	for d in debts:
 		if not debts[d]["answered"]:

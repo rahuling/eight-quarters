@@ -28,6 +28,11 @@ var game_layer: Control
 var game_box: VBoxContainer
 var bg_rect: ColorRect
 var report_pending := false
+var intro_layer: Control = null
+var intro_clicked := false
+var intro_skip := false
+var intro_hint: Label = null
+var intro_run := 0
 
 func _ready() -> void:
 	bg_rect = ColorRect.new()
@@ -45,7 +50,7 @@ func _ready() -> void:
 	if OS.get_environment("EQ_SMOKE") == "1":
 		_smoke(deck)
 		return
-	_show_title(deck)
+	_show_intro(deck)
 
 func _load_fonts() -> void:
 	if FileAccess.file_exists("res://assets/fonts/PressStart2P.ttf"):
@@ -181,6 +186,137 @@ func _trust_pips(v: int) -> String:
 		out += "#" if v >= level and v > -3 else "."
 	return out
 
+# ---------------- intro cutscene (click to advance, 5s auto) ----------------
+
+func _center_label(text: String, size: int, color: Color, px: bool = false) -> Label:
+	var l := _label(text, size, color, px)
+	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+func _show_intro(deck: Dictionary) -> void:
+	_clear_all()
+	intro_run += 1
+	var my_run := intro_run
+	intro_skip = false
+	intro_layer = Control.new()
+	intro_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(intro_layer)
+	var bgd := ColorRect.new()
+	bgd.color = Color(0.02, 0.05, 0.07)
+	bgd.set_anchors_preset(Control.PRESET_FULL_RECT)
+	intro_layer.add_child(bgd)
+	var margin := MarginContainer.new()
+	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
+	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
+		margin.add_theme_constant_override(m, 50)
+	intro_layer.add_child(margin)
+	var body := _vbox(14)
+	body.alignment = BoxContainer.ALIGNMENT_CENTER
+	margin.add_child(body)
+	intro_hint = _label(">> CLICK TO CONTINUE <<", 9, COL_AMBER, true)
+	intro_hint.set_anchors_preset(Control.PRESET_BOTTOM_WIDE)
+	intro_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	intro_hint.visible = false
+	intro_layer.add_child(intro_hint)
+	var catcher := Button.new()
+	catcher.flat = true
+	catcher.set_anchors_preset(Control.PRESET_FULL_RECT)
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		catcher.add_theme_stylebox_override(st, StyleBoxEmpty.new())
+	catcher.pressed.connect(func(): intro_clicked = true)
+	intro_layer.add_child(catcher)
+	var skipb := _button("SKIP", 9, func(): intro_skip = true, COL_MUT)
+	skipb.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	skipb.position = Vector2(-90, 14)
+	skipb.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	skipb.offset_left = -110.0
+	skipb.offset_right = -14.0
+	skipb.offset_top = 14.0
+	intro_layer.add_child(skipb)
+	_play_intro(body, deck, my_run)
+
+func _intro_gate(t: float) -> void:
+	intro_clicked = false
+	if intro_hint:
+		intro_hint.visible = true
+	var elapsed := 0.0
+	while elapsed < t and not intro_clicked:
+		await get_tree().process_frame
+		elapsed += get_process_delta_time()
+	if intro_hint:
+		intro_hint.visible = false
+
+func _play_intro(body: VBoxContainer, deck: Dictionary, my_run: int) -> void:
+	var smoke := OS.get_environment("EQ_SMOKE") == "1"
+	var gate_t := 0.2 if smoke else 5.0
+	var alive := func() -> bool: return not intro_skip and my_run == intro_run and is_instance_valid(body)
+	# beat 1 - the bank
+	_clear(body)
+	body.add_child(_center_label("SOMEWHERE IN THE REGION", 10, COL_LAVA, true))
+	body.add_child(_center_label("A LARGE BANK", 30, COL_OAT, true))
+	body.add_child(_center_label("IN SOUTHEAST ASIA", 30, COL_OAT, true))
+	var sky := _hbox(6)
+	sky.alignment = BoxContainer.ALIGNMENT_CENTER
+	for i in 5:
+		var r := ColorRect.new()
+		r.color = Color("123540")
+		r.custom_minimum_size = Vector2(60 + (i * 37) % 80, 90 + (i * 53) % 120)
+		r.size_flags_vertical = Control.SIZE_SHRINK_END
+		sky.add_child(r)
+	body.add_child(sky)
+	body.add_child(_center_label("Eight thousand people. Sixty systems. One very old warehouse.", 18, COL_MUT))
+	await _intro_gate(gate_t)
+	if not alive.call(): return
+	# beat 2 - the inheritance
+	_clear(body)
+	body.add_child(_center_label("WHAT YOU INHERIT", 10, COL_LAVA, true))
+	for s in ["A data warehouse, eight years old. The regulator expects its reports every quarter.",
+	"An analytics env Marketing stood up on a different cloud. Ungoverned. Production-critical.",
+	"A half-finished migration. The last CTO started it. Nobody remembers why.",
+	"And treasury's nightly reconciliation - running on someone's laptop."]:
+		body.add_child(_center_label(s, 17, COL_TXT()))
+	await _intro_gate(gate_t)
+	if not alive.call(): return
+	# beat 3 - the offer
+	_clear(body)
+	body.add_child(_center_label("The CEO has a job for you.", 20, COL_TXT()))
+	body.add_child(_center_label("HEAD OF DATA", 32, COL_OAT, true))
+	body.add_child(_center_label("Your term: EIGHT QUARTERS. Two fiscal years, one sitting.", 18, COL_MUT))
+	body.add_child(_center_label("Your budget: whatever survives the board.", 18, COL_MUT))
+	await _intro_gate(gate_t)
+	if not alive.call(): return
+	# beat 4 - the stakes, explicit
+	_clear(body)
+	body.add_child(_center_label("THE STAKES - WHAT YOU CAN LOSE", 10, COL_LAVA, true))
+	body.add_child(_center_label("YOUR JOB - two board scandals with your standing at zero.", 16, COL_AMBER))
+	body.add_child(_center_label("YOUR BUDGET - adoption below one BU, and the cuts come for you.", 16, COL_AMBER))
+	body.add_child(_center_label("THE PLATFORM - Aguilar's meter at 100%%, and the remit is his.", 16, COL_AMBER))
+	body.add_child(_center_label("THE AGENTS - one scandal you cannot contain ends the program.", 16, COL_AMBER))
+	body.add_child(_center_label("The mandate clock is real. Miss it and it is a scandal.", 16, COL_MUT))
+	await _intro_gate(gate_t)
+	if not alive.call(): return
+	# beat 5 - the rules, explicit design points
+	_clear(body)
+	body.add_child(_center_label("THE FIVE RULES OF THIS WORLD", 10, COL_LAVA, true))
+	body.add_child(_center_label("1. Foundation before AI - the gates are real.", 16, COL_OAT))
+	body.add_child(_center_label("2. Adoption is a series of purchases - BUs choose you.", 16, COL_OAT))
+	body.add_child(_center_label("3. Ownership reaches the tables - or 2am owns you.", 16, COL_OAT))
+	body.add_child(_center_label("4. Blame costs trust, not capital - keep the ledger true.", 16, COL_OAT))
+	body.add_child(_center_label("5. Decisions changed is the only score.", 16, COL_OAT))
+	await _intro_gate(gate_t)
+	if not alive.call(): return
+	# beat 6 - the cast
+	_clear(body)
+	body.add_child(_center_label("SIXTEEN SEATS AT THE TABLE", 10, COL_AMBER, true))
+	body.add_child(_center_label("A CEO who wants agents. A CISO who will veto them. A CFO who owns your budget.", 17, COL_TXT()))
+	body.add_child(_center_label("A CRO who owns the regulator. A BU lead who will route around you.", 17, COL_TXT()))
+	body.add_child(_center_label("And Tomas Aguilar, who thinks the platform should be his - and is not wrong.", 17, COL_AMBER))
+	body.add_child(_center_label("Some will save you. Some will end you. All of them are right.", 18, COL_OAT))
+	await _intro_gate(gate_t)
+	if not alive.call(): return
+	_show_title(deck)
+
 # ---------------- title ----------------
 
 func _show_title(deck: Dictionary) -> void:
@@ -210,6 +346,7 @@ func _show_title(deck: Dictionary) -> void:
 	var row := _hbox(16)
 	row.alignment = BoxContainer.ALIGNMENT_CENTER
 	row.add_child(_button("NEW GAME", 10, func(): start_game(deck, int(Time.get_unix_time_from_system()) % 1000000), COL_LAVA))
+	row.add_child(_button("REPLAY INTRO", 9, func(): _show_intro(deck), COL_MUT))
 	var cont := _button("CONTINUE (v0.2)", 10, func(): pass, COL_MUT)
 	cont.disabled = true
 	row.add_child(cont)
@@ -222,6 +359,7 @@ func COL_TXT() -> Color:
 	return Color("c9d6dc")
 
 func start_game(deck: Dictionary, run_seed: int) -> void:
+	intro_run += 1
 	GameState.start_run(deck, run_seed)
 	_build_game_layer()
 
@@ -258,6 +396,8 @@ func _rebuild_hud(box: VBoxContainer) -> void:
 	row.add_child(_label("STANDING L%d %s" % [g.standing_level(), g.standing_title().to_upper()], 10, COL_AMBER, true))
 	tv.add_child(row)
 	tv.add_child(_label("MANDATE: %s   (CLOCK: Q%d)" % [g.mandate["text"], g.clock_due], 15, COL_AMBER))
+	if g.clock_due - g.quarter <= 1:
+		tv.add_child(_label("!! MANDATE DUE NEXT QUARTER - MISS = BOARD SCANDAL", 12, COL_LAVA, true))
 	top.add_child(tv)
 	box.add_child(top)
 
@@ -325,6 +465,9 @@ func _rebuild_right(box: VBoxContainer) -> void:
 	v2.add_child(_label("SHADOW-IT INDEX     [%s] %d%%" % [_bar(g.shadow), g.shadow], 13, COL_TXT()))
 	v2.add_child(_label("AUDIT PATIENCE      [%s] %d%%" % [_bar(g.audit), g.audit], 13, COL_TXT()))
 	v2.add_child(_label("BOARD SCANDALS: %d" % g.scandals, 13, COL_LAVA if g.scandals > 0 else COL_MUT))
+	v2.add_child(_label("rival 100 = remit moves: ABSORBED", 11, COL_LAVA))
+	v2.add_child(_label("2 scandals + standing 0 = FIRED", 11, COL_LAVA))
+	v2.add_child(_label("adoption <1 BU = DEFUNDED", 11, COL_LAVA))
 	p2.add_child(v2)
 	col.add_child(p2)
 	var p3 := _panel()
@@ -354,6 +497,9 @@ func _rebuild_actions(box: VBoxContainer) -> void:
 	for f in g.deck["forks"]:
 		if f["quarter"] == g.quarter and not g.fork_done.has(f["id"]):
 			v.add_child(_label("FORK: %s" % f["title"], 14, COL_LAVA, true))
+			var fl := _label("DESIGN POINT - from '%s': %s" % [f["article"], f.get("lesson", "")], 12, COL_MUT)
+			fl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			v.add_child(fl)
 			var f_id: String = f["id"]
 			for i in f["options"].size():
 				var idx: int = i
@@ -447,6 +593,8 @@ func _event_modal(parent: Control) -> void:
 	v.add_child(_type_label("RE:      " + ev["title"], 14))
 	v.add_child(_type_label(ev["text"], 15))
 	v.add_child(_type_label("SEED NOTE: " + ev["seed_label"], 12, Color("8c2a20")))
+	if ev.has("lesson"):
+		v.add_child(_type_label("DESIGN NOTE: " + ev["lesson"], 13, Color("1d7a52")))
 	v.add_child(_type_label("Please indicate your course of action and return this memo:", 13, COL_PDIM))
 	for i in ev["responses"].size():
 		var idx: int = i
@@ -534,6 +682,8 @@ func _show_results(report: Dictionary) -> void:
 		v.add_child(_type_label(n, 14, Color("8c2a20")))
 	if report.has("event") and report["event"] != null:
 		v.add_child(_type_label("the quarter closed on: %s" % report["event"], 14, COL_PDIM))
+	if report.has("lesson") and str(report["lesson"]) != "":
+		v.add_child(_type_label("WHAT THIS TAUGHT: " + str(report["lesson"]), 14, Color("1d7a52")))
 	if g.game_over.is_empty():
 		var foreshadow: Array = g.deck["foreshadow"]
 		var line: String = foreshadow[g.rng.randi_range(0, foreshadow.size() - 1)]
@@ -604,6 +754,9 @@ func _shot(name: String) -> void:
 	img.save_png("/tmp/eq_" + name + ".png")
 
 func _smoke(deck: Dictionary) -> void:
+	print("SMOKE: intro")
+	_show_intro(deck)
+	await _shot("intro")
 	print("SMOKE: starting run")
 	start_game(deck, 2026)
 	await _shot("game")

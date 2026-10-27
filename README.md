@@ -4,6 +4,8 @@ An 8-bit enterprise data & AI platform survival sim. You are the new Head of Dat
 Inherit the mess, launch the platform, survive the politics, decide whether the
 agents get unleashed. Eight quarters. Every stakeholder is right. Consequences arrive late.
 
+**PLAY IN BROWSER: https://rahuling.github.io/eight-quarters/** (published automatically by CI on every push to main)
+
 Built with Godot 4.7 (MIT). Free, open source, zero dependencies.
 
 ## Run it

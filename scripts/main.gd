@@ -14,11 +14,18 @@ const COL_AMBER := Color("ffb020")
 const COL_GREEN := Color("3ecf8e")
 const COL_BLUE := Color("5aa7d6")
 const COL_MUT := Color("7f97a1")
+const COL_PAPER := Color("efe8d8")
+const COL_PINK := Color("2b2a24")
+const COL_PDIM := Color("6d675a")
+const COL_STAMP := Color("b3202a")
+const COL_STAMPB := Color("274b8f")
 
 var font_px: Font = null
 var font_body: Font = null
+var font_type: Font = null
 var root_ctl: Control
 var game_layer: Control
+var report_pending := false
 
 func _ready() -> void:
 	var bg := ColorRect.new()
@@ -43,6 +50,8 @@ func _load_fonts() -> void:
 		font_px = load("res://assets/fonts/PressStart2P.ttf")
 	if FileAccess.file_exists("res://assets/fonts/VT323.ttf"):
 		font_body = load("res://assets/fonts/VT323.ttf")
+	if FileAccess.file_exists("res://assets/fonts/SpecialElite.ttf"):
+		font_type = load("res://assets/fonts/SpecialElite.ttf")
 
 # ---------------- widget helpers ----------------
 
@@ -56,6 +65,54 @@ func _label(text: String, size: int, color: Color, px: bool = false) -> Label:
 	l.add_theme_font_size_override("font_size", size)
 	l.add_theme_color_override("font_color", color)
 	return l
+
+func _paper_panel(margin: int = 26) -> PanelContainer:
+	var p := PanelContainer.new()
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = COL_PAPER
+	sb.set_content_margin_all(margin)
+	sb.shadow_color = Color(0, 0, 0, 0.45)
+	sb.shadow_size = 10
+	p.add_theme_stylebox_override("panel", sb)
+	return p
+
+func _type_label(text: String, size: int, color: Color = COL_PINK) -> Label:
+	var l := Label.new()
+	l.text = text
+	if font_type:
+		l.add_theme_font_override("font", font_type)
+	l.add_theme_font_size_override("font_size", size)
+	l.add_theme_color_override("font_color", color)
+	l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	return l
+
+func _stamp(text: String, color: Color = COL_STAMP, rot: float = -6.0) -> Label:
+	var l := _type_label(text, 15, color)
+	l.rotation_degrees = rot
+	var sb := StyleBoxFlat.new()
+	sb.set_border_width_all(3)
+	sb.border_color = color
+	sb.set_content_margin_all(6)
+	l.add_theme_stylebox_override("normal", sb)
+	return l
+
+func _paper_button(text: String, size: int, cb: Callable, accent: Color = COL_PINK) -> Button:
+	var b := Button.new()
+	b.text = text
+	if font_type:
+		b.add_theme_font_override("font", font_type)
+	b.add_theme_font_size_override("font_size", size)
+	b.add_theme_color_override("font_color", accent)
+	b.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	for st in ["normal", "hover", "pressed", "disabled", "focus"]:
+		var sb := StyleBoxFlat.new()
+		sb.bg_color = COL_PAPER
+		sb.border_color = accent if st != "disabled" else COL_PDIM
+		sb.set_border_width_all(2)
+		sb.set_content_margin_all(8)
+		b.add_theme_stylebox_override(st, sb)
+	b.pressed.connect(cb)
+	return b
 
 func _button(text: String, size: int, cb: Callable, accent: Color = COL_OAT) -> Button:
 	var b := Button.new()
@@ -304,21 +361,9 @@ func _rebuild_actions(box: VBoxContainer) -> void:
 			v.add_child(mrow)
 	else:
 		v.add_child(_label("Meeting slot used this quarter.", 12, COL_MUT))
-	# pending event
+	# pending event - arrives as a paper memo modal
 	if not g.current_event.is_empty():
-		v.add_child(_label("!! " + g.current_event["title"], 13, COL_LAVA, true))
-		v.add_child(_label(g.current_event["text"], 14, COL_TXT()))
-		v.add_child(_label("(%s)" % g.current_event["seed_label"], 12, COL_MUT))
-		for i in g.current_event["responses"].size():
-			var idx2: int = i
-			var resp: Dictionary = g.current_event["responses"][i]
-			var avail := g.response_available(resp)
-			var req_txt := ""
-			if not avail:
-				req_txt = "  [locked: needs the foundation / answered debt]"
-			var rb := _button("%d. %s%s" % [i + 1, resp["label"], req_txt], 12, func(): _do_event(idx2), COL_AMBER if avail else COL_MUT)
-			rb.disabled = not avail
-			v.add_child(rb)
+		v.add_child(_label("A memo has arrived - see the paper on your desk.", 13, COL_AMBER))
 	# end quarter
 	var end_row := _hbox(10)
 	end_row.add_child(_button("END QUARTER >>", 10, _do_end_quarter, COL_LAVA))
@@ -353,6 +398,8 @@ func rebuild_game() -> void:
 	_rebuild_platform(center)
 	_rebuild_right(right)
 	_rebuild_actions(box)
+	if not g.current_event.is_empty():
+		_event_modal(game_layer)
 	if not g.game_over.is_empty():
 		_show_ending()
 
@@ -361,6 +408,47 @@ func _on_state_changed() -> void:
 		pass  # rebuilds are triggered explicitly after actions
 
 # ---------------- action wrappers ----------------
+
+func _event_modal(parent: Control) -> void:
+	var g := GameState
+	var ev: Dictionary = g.current_event
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.6)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	parent.add_child(dim)
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	parent.add_child(center)
+	var pp := _paper_panel(28)
+	pp.custom_minimum_size = Vector2(580, 0)
+	center.add_child(pp)
+	var v := _vbox(6)
+	pp.add_child(v)
+	var head := _type_label("INTEROFFICE MEMORANDUM", 18)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v.add_child(head)
+	v.add_child(HSeparator.new())
+	v.add_child(_type_label("FROM:    The building", 14))
+	v.add_child(_type_label("TO:      Head of Data", 14))
+	v.add_child(_type_label("RE:      " + ev["title"], 14))
+	v.add_child(_type_label(ev["text"], 15))
+	v.add_child(_type_label("SEED NOTE: " + ev["seed_label"], 12, Color("8c2a20")))
+	v.add_child(_type_label("Please indicate your course of action and return this memo:", 13, COL_PDIM))
+	for i in ev["responses"].size():
+		var idx: int = i
+		var resp: Dictionary = ev["responses"][i]
+		var avail: bool = g.response_available(resp)
+		var locktxt := "" if avail else "   [needs the foundation / answered debt]"
+		var b := _paper_button("[ ]  " + resp["label"] + locktxt, 14, func(): _do_event(idx), COL_PINK if avail else COL_PDIM)
+		b.disabled = not avail
+		v.add_child(b)
+	var stamprow := _hbox(0)
+	var spacer := Control.new()
+	spacer.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stamprow.add_child(spacer)
+	stamprow.add_child(_stamp("FILED Q%d" % g.quarter))
+	v.add_child(stamprow)
+	v.add_child(_type_label("sign & return by end of quarter - cc: The Council", 12, COL_PDIM))
 
 func _do_build(track_id: String) -> void:
 	var r: Dictionary = GameState.start_build(track_id)
@@ -382,11 +470,16 @@ func _do_meeting(deal: Dictionary) -> void:
 
 func _do_event(idx: int) -> void:
 	GameState.resolve_event(idx)
-	rebuild_game()
+	if report_pending:
+		report_pending = false
+		_show_results(GameState.last_report)
+	else:
+		rebuild_game()
 
 func _do_end_quarter() -> void:
 	var report: Dictionary = GameState.end_quarter()
 	if not GameState.current_event.is_empty():
+		report_pending = true
 		rebuild_game()
 		return
 	_show_results(report)
@@ -399,30 +492,47 @@ func _show_results(report: Dictionary) -> void:
 	var wrap := MarginContainer.new()
 	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
-		wrap.add_theme_constant_override(m, 40)
-	var v := _vbox(10)
-	wrap.add_child(v)
+		wrap.add_theme_constant_override(m, 30)
 	add_child(wrap)
-	var head := _label("QUARTER %d RESULTS" % report["quarter"], 18, COL_OAT, true)
+	var pp := _paper_panel(30)
+	wrap.add_child(pp)
+	var v := _vbox(7)
+	pp.add_child(v)
+	var head := _type_label("INTEROFFICE MEMORANDUM - QUARTER RESULTS", 17)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	v.add_child(head)
-	v.add_child(_label("DECISIONS CHANGED +%d   (total %d)" % [report["decisions"], g.decisions_changed], 15, COL_GREEN))
+	v.add_child(HSeparator.new())
+	v.add_child(_type_label("RE: Quarter %d - filed by the Head of Data" % report["quarter"], 14, COL_PDIM))
+	v.add_child(_type_label("DECISIONS CHANGED +%d   (running total: %d)" % [report["decisions"], g.decisions_changed], 16, Color("1d7a52")))
 	for b in report["builds_done"]:
-		v.add_child(_label("build delivered: %s" % b, 14, COL_GREEN))
+		v.add_child(_type_label("delivered to the estate: %s" % b, 14))
 	for pm in report["promises_met"]:
-		v.add_child(_label("promise kept: %s" % pm, 14, COL_GREEN))
+		var metrow := _hbox(12)
+		metrow.add_child(_stamp("DELIVERED", Color("1d7a52"), -4.0))
+		metrow.add_child(_type_label(pm, 14))
+		v.add_child(metrow)
 	for pm in report["promises_missed"]:
-		v.add_child(_label("promise MISSED: %s" % pm, 14, COL_LAVA))
+		var missrow := _hbox(12)
+		missrow.add_child(_stamp("MISSED - ON FILE", COL_STAMP, 3.0))
+		missrow.add_child(_type_label(pm, 14, Color("8c2a20")))
+		v.add_child(missrow)
 	for n in report["notes"]:
-		v.add_child(_label(n, 14, COL_LAVA))
+		v.add_child(_type_label(n, 14, Color("8c2a20")))
 	if report.has("event") and report["event"] != null:
-		v.add_child(_label("the quarter closed on: %s" % report["event"], 14, COL_AMBER))
-	if GameState.game_over.is_empty():
+		v.add_child(_type_label("the quarter closed on: %s" % report["event"], 14, COL_PDIM))
+	if g.game_over.is_empty():
 		var foreshadow: Array = g.deck["foreshadow"]
 		var line: String = foreshadow[g.rng.randi_range(0, foreshadow.size() - 1)]
-		v.add_child(_label("NEXT QUARTER: " + line, 14, COL_MUT))
-		v.add_child(_button("CONTINUE >>", 10, _next_after_results, COL_LAVA))
+		v.add_child(_type_label("NEXT QUARTER: " + line, 14, COL_PDIM))
+		var btnrow := _hbox(0)
+		var sp := Control.new()
+		sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		btnrow.add_child(sp)
+		var cb := _paper_button("CONTINUE >>", 14, _next_after_results, COL_STAMPB)
+		btnrow.add_child(cb)
+		v.add_child(btnrow)
 	else:
-		_show_ending_panel(v)
+		_show_ending()
 
 func _next_after_results() -> void:
 	if GameState.game_over.is_empty():
@@ -431,27 +541,46 @@ func _next_after_results() -> void:
 func _show_ending() -> void:
 	_clear(game_layer)
 	var v := _vbox(12)
-	v.set_anchors_preset(Control.PRESET_FULL_RECT)
 	var wrap := MarginContainer.new()
 	wrap.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		wrap.add_theme_constant_override(m, 50)
 	wrap.add_child(v)
-	add_child(v)
+	add_child(wrap)
 	_show_ending_panel(v)
 
 func _show_ending_panel(v: VBoxContainer) -> void:
 	var g := GameState
 	var e: Dictionary = g.game_over["ending"]
 	var is_win: bool = g.game_over["kind"] == "end"
-	v.add_child(_label("PERFORMANCE REVIEW", 10, COL_MUT, true))
-	v.add_child(_label(e["title"], 24, COL_GREEN if is_win else COL_LAVA, true))
-	v.add_child(_label("decisions changed: %d" % g.decisions_changed, 15, COL_TXT()))
-	v.add_child(_label("adoption: %d/6 BUs on platform" % g.adoption_on(), 15, COL_TXT()))
-	v.add_child(_label("audit patience: %d%%   rival meter: %d%%   scandals: %d" % [g.audit, g.rival, g.scandals], 15, COL_TXT()))
-	v.add_child(_label("final standing: L%d %s" % [g.standing_level(), g.standing_title()], 15, COL_AMBER))
-	v.add_child(_label("RUN SEED: %d - post it with your score." % g.seed_value, 14, COL_MUT))
-	v.add_child(_button("NEW RUN", 10, func(): _show_title(GameState.deck), COL_LAVA))
+	var pp := _paper_panel(34)
+	v.add_child(pp)
+	var v2 := _vbox(9)
+	pp.add_child(v2)
+	var head := _type_label("PERFORMANCE REVIEW - END OF YEAR 3 - CONFIDENTIAL", 15, COL_PDIM)
+	head.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v2.add_child(head)
+	v2.add_child(HSeparator.new())
+	var et := _type_label(e["title"], 26, Color("1d7a52") if is_win else COL_STAMP)
+	et.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	v2.add_child(et)
+	v2.add_child(_type_label("decisions changed: %d" % g.decisions_changed, 15))
+	v2.add_child(_type_label("business units on the platform: %d of 6" % g.adoption_on(), 15))
+	v2.add_child(_type_label("audit patience: %d%%   -   Aguilar's instance: %d%%   -   board scandals: %d" % [g.audit, g.rival, g.scandals], 15))
+	v2.add_child(_type_label("final standing: L%d %s" % [g.standing_level(), g.standing_title()], 15, COL_PDIM))
+	var stamprow := _hbox(0)
+	var sp := Control.new()
+	sp.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	stamprow.add_child(sp)
+	stamprow.add_child(_stamp(e["title"], Color("1d7a52") if is_win else COL_STAMP, -3.0))
+	v2.add_child(stamprow)
+	v2.add_child(_type_label("RUN SEED: %d - post it with your score." % g.seed_value, 13, COL_PDIM))
+	var btnrow := _hbox(0)
+	var sp2 := Control.new()
+	sp2.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	btnrow.add_child(sp2)
+	btnrow.add_child(_paper_button("NEW RUN", 14, func(): _show_title(GameState.deck), COL_STAMP))
+	v2.add_child(btnrow)
 
 # ---------------- headless smoke ----------------
 
@@ -474,5 +603,8 @@ func _smoke(deck: Dictionary) -> void:
 			if GameState.game_over.is_empty():
 				rebuild_game()
 	print("SMOKE: finished - %s / %s | decisions=%d" % [GameState.game_over.get("kind", "?"), GameState.game_over.get("ending", {}).get("title", "?"), GameState.decisions_changed])
+	if GameState.last_report.size() > 0:
+		_show_results(GameState.last_report)
+	_show_ending()
 	print("SMOKE OK")
 	get_tree().quit(0)

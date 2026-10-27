@@ -25,13 +25,15 @@ var font_body: Font = null
 var font_type: Font = null
 var root_ctl: Control
 var game_layer: Control
+var game_box: VBoxContainer
+var bg_rect: ColorRect
 var report_pending := false
 
 func _ready() -> void:
-	var bg := ColorRect.new()
-	bg.color = COL_BG
-	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(bg)
+	bg_rect = ColorRect.new()
+	bg_rect.color = COL_BG
+	bg_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(bg_rect)
 	_load_fonts()
 	var deck := DeckScript.load_pack()
 	if deck.is_empty():
@@ -89,12 +91,19 @@ func _type_label(text: String, size: int, color: Color = COL_PINK) -> Label:
 func _stamp(text: String, color: Color = COL_STAMP, rot: float = -6.0) -> Label:
 	var l := _type_label(text, 15, color)
 	l.rotation_degrees = rot
+	l.autowrap_mode = TextServer.AUTOWRAP_OFF
 	var sb := StyleBoxFlat.new()
 	sb.set_border_width_all(3)
 	sb.border_color = color
 	sb.set_content_margin_all(6)
 	l.add_theme_stylebox_override("normal", sb)
 	return l
+
+func _autowrap_deep(node: Node) -> void:
+	for c in node.get_children():
+		if c is Label and c.text.length() > 24:
+			c.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		_autowrap_deep(c)
 
 func _paper_button(text: String, size: int, cb: Callable, accent: Color = COL_PINK) -> Button:
 	var b := Button.new()
@@ -158,6 +167,13 @@ func _clear(node: Node) -> void:
 		node.remove_child(c)
 		c.queue_free()
 
+func _clear_all() -> void:
+	for c in get_children():
+		if c == bg_rect:
+			continue
+		remove_child(c)
+		c.queue_free()
+
 func _trust_pips(v: int) -> String:
 	var out := ""
 	for i in range(5):
@@ -168,11 +184,7 @@ func _trust_pips(v: int) -> String:
 # ---------------- title ----------------
 
 func _show_title(deck: Dictionary) -> void:
-	_clear(self)
-	for c in [root_ctl, game_layer]:
-		if c:
-			c.queue_free()
-	game_layer = null
+	_clear_all()
 	var box := _vbox(18)
 	box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	box.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -216,19 +228,22 @@ func start_game(deck: Dictionary, run_seed: int) -> void:
 # ---------------- game screen ----------------
 
 func _build_game_layer() -> void:
-	_clear(self)
+	_clear_all()
 	game_layer = Control.new()
 	game_layer.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(game_layer)
-	var box := _vbox(10)
-	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	var scroll := ScrollContainer.new()
+	scroll.set_anchors_preset(Control.PRESET_FULL_RECT)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	game_layer.add_child(scroll)
 	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
 	for m in ["margin_left", "margin_right", "margin_top", "margin_bottom"]:
 		margin.add_theme_constant_override(m, 12)
-	margin.add_child(box)
-	game_layer.add_child(margin)
-	rebuild_game()
+	game_box = _vbox(10)
+	game_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	margin.add_child(game_box)
+	scroll.add_child(margin)
+	_populate_game()
 
 func _rebuild_hud(box: VBoxContainer) -> void:
 	var g := GameState
@@ -269,28 +284,24 @@ func _rebuild_platform(box: VBoxContainer) -> void:
 		var cells := ""
 		for i in range(4):
 			cells += "#" if i < lvl else "."
-		var row := _hbox(10)
-		row.add_child(_label(t["name"], 14, COL_OAT))
-		row.add_child(_label("[%s] L%d %s" % [cells, lvl, t["levels"][lvl]], 14, COL_GREEN if lvl > 0 else COL_MUT))
-		var cost = t["costs"][lvl] if lvl < 3 else null
-		if cost != null:
+		v.add_child(_label("%s   [%s]  L%d %s" % [t["name"], cells, lvl, t["levels"][lvl]], 14, COL_OAT))
+		if lvl < 3:
+			var cost = t["costs"][lvl]
 			var track_id: String = t["id"]
-			row.add_child(_button("BUILD L%d $%dk" % [lvl + 1, cost["budget"]], 8, func(): _do_build(track_id), COL_GREEN))
-		p.add_child(row)
+			v.add_child(_button("BUILD L%d   $%dk - %d eng - %d quarter(s)" % [lvl + 1, cost["budget"], cost["crew"], cost["quarters"]], 9, func(): _do_build(track_id), COL_GREEN))
 		for b in g.builds:
 			if b["track"] == t["id"]:
-				p.add_child(_label("  >> in progress - %d quarter(s) left" % b["left"], 13, COL_AMBER))
-	v.add_child(_label("DECISION DEBT", 8, COL_AMBER, true))
+				v.add_child(_label("   >> in progress - %d quarter(s) left" % b["left"], 13, COL_AMBER))
+	v.add_child(_label("DECISION DEBT - unanswered questions fire as crises", 8, COL_AMBER, true))
 	for d in g.deck["debts"]:
 		var dd: Dictionary = g.debts[d["id"]]
-		var state_txt := "ANSWERED" if dd["answered"] else "OPEN - fuse %d" % dd["fuse"]
-		var debt_row := _hbox(10)
-		debt_row.add_child(_label("- %s" % d["question"], 13, COL_TXT()))
+		v.add_child(_label("- " + d["question"], 13, COL_TXT()))
+		var drow := _hbox(10)
 		var d_id: String = d["id"]
 		if not dd["answered"]:
-			debt_row.add_child(_button("ANSWER (1 PC + meeting slot)", 8, func(): _do_debt(d_id), COL_AMBER))
-		debt_row.add_child(_label(state_txt, 12, COL_GREEN if dd["answered"] else COL_LAVA))
-		v.add_child(debt_row)
+			drow.add_child(_button("ANSWER (1 PC + meeting slot)", 9, func(): _do_debt(d_id), COL_AMBER))
+		drow.add_child(_label("ANSWERED" if dd["answered"] else "OPEN - fuse %d" % dd["fuse"], 12, COL_GREEN if dd["answered"] else COL_LAVA))
+		v.add_child(drow)
 	p.add_child(v)
 	box.add_child(p)
 
@@ -343,11 +354,12 @@ func _rebuild_actions(box: VBoxContainer) -> void:
 	for f in g.deck["forks"]:
 		if f["quarter"] == g.quarter and not g.fork_done.has(f["id"]):
 			v.add_child(_label("FORK: %s" % f["title"], 14, COL_LAVA, true))
+			var f_id: String = f["id"]
 			for i in f["options"].size():
 				var idx: int = i
 				var opt: Dictionary = f["options"][i]
 				var btxt := "> %s   [pc %d, $%dk]" % [opt["label"], int(opt["effects"].get("pc", 0)), abs(int(opt["effects"].get("budget", 0)))]
-				v.add_child(_button(btxt, 12, func(): _do_fork(f["id"], idx), COL_OAT))
+				v.add_child(_button(btxt, 12, func(): _do_fork(f_id, idx), COL_OAT))
 	# meeting
 	if not g.meeting_used:
 		var deal: Dictionary = g.featured_meeting()
@@ -373,31 +385,33 @@ func _rebuild_actions(box: VBoxContainer) -> void:
 	box.add_child(p)
 
 func rebuild_game() -> void:
-	if game_layer == null:
-		return
-	var g := GameState
-	var box: VBoxContainer = null
-	for c in game_layer.get_children():
-		if c is MarginContainer:
-			box = c.get_child(0)
-	_clear(game_layer)
-	if box == null:
+	if game_layer == null or game_box == null:
 		_build_game_layer()
 		return
+	_clear(game_box)
+	_populate_game()
+
+func _populate_game() -> void:
+	var g := GameState
+	_rebuild_hud(game_box)
 	var content := _hbox(10)
 	var left := _vbox(10)
 	var center := _vbox(10)
 	var right := _vbox(10)
+	left.custom_minimum_size = Vector2(225, 0)
+	right.custom_minimum_size = Vector2(250, 0)
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	content.add_child(left)
 	content.add_child(center)
 	content.add_child(right)
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	box.add_child(content)
-	_rebuild_hud(box)
+	game_box.add_child(content)
 	_rebuild_council(left)
 	_rebuild_platform(center)
 	_rebuild_right(right)
-	_rebuild_actions(box)
+	_rebuild_actions(game_box)
+	_autowrap_deep(left)
+	_autowrap_deep(right)
+	_autowrap_deep(center)
 	if not g.current_event.is_empty():
 		_event_modal(game_layer)
 	if not g.game_over.is_empty():
@@ -584,9 +598,15 @@ func _show_ending_panel(v: VBoxContainer) -> void:
 
 # ---------------- headless smoke ----------------
 
+func _shot(name: String) -> void:
+	await RenderingServer.frame_post_draw
+	var img := get_viewport().get_texture().get_image()
+	img.save_png("/tmp/eq_" + name + ".png")
+
 func _smoke(deck: Dictionary) -> void:
 	print("SMOKE: starting run")
 	start_game(deck, 2026)
+	await _shot("game")
 	var guard := 0
 	while GameState.game_over.is_empty() and guard < 40:
 		guard += 1
@@ -594,6 +614,8 @@ func _smoke(deck: Dictionary) -> void:
 			if f["quarter"] == GameState.quarter and not GameState.fork_done.has(f["id"]):
 				GameState.make_fork(f["id"], 0)
 		if not GameState.current_event.is_empty():
+			rebuild_game()
+			await _shot("event")
 			for i in GameState.current_event["responses"].size():
 				if GameState.response_available(GameState.current_event["responses"][i]):
 					GameState.resolve_event(i)
@@ -605,6 +627,8 @@ func _smoke(deck: Dictionary) -> void:
 	print("SMOKE: finished - %s / %s | decisions=%d" % [GameState.game_over.get("kind", "?"), GameState.game_over.get("ending", {}).get("title", "?"), GameState.decisions_changed])
 	if GameState.last_report.size() > 0:
 		_show_results(GameState.last_report)
+		await _shot("results")
 	_show_ending()
+	await _shot("ending")
 	print("SMOKE OK")
 	get_tree().quit(0)

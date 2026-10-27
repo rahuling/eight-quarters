@@ -23,6 +23,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Install container deps (fontconfig, unzip)
+        run: apt-get update -qq && apt-get install -y -qq fontconfig libfontconfig1 unzip
+
+      - name: Install web export templates
+        run: |
+          mkdir -p /github/home/.local/share/godot/export_templates/4.7.2.stable
+          curl -sL --fail -o /tmp/templates.tpz https://github.com/godotengine/godot/releases/download/4.7.2-stable/Godot_v4.7.2-stable_export_templates.tpz
+          cd /tmp
+          unzip -o -j templates.tpz "templates/web_nothreads_release.zip" "templates/web_nothreads_debug.zip" -d /github/home/.local/share/godot/export_templates/4.7.2.stable/
+          ls -la /github/home/.local/share/godot/export_templates/4.7.2.stable/
+
       - name: Import assets
         run: godot --headless --path . --import
 

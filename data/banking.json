@@ -1,0 +1,252 @@
+{
+  "pack": "banking",
+  "title": "EIGHT QUARTERS",
+  "subtitle": "THE WEIGHT OF THE PLATFORM - banking pack",
+
+  "seats": [
+    {"id": "sandoval",  "name": "RICO SANDOVAL",  "role": "CEO",                 "faction": "FUND",   "trust0": 0,  "palette": ["#9a9a9a", "#d9a86e", "#402030"]},
+    {"id": "torres",    "name": "MARA TORRES",    "role": "CISO",                "faction": "DEFEND", "trust0": 1,  "palette": ["#4a3527", "#e8b88a", "#4a1f18"]},
+    {"id": "lim",       "name": "JOSEPHINE LIM",  "role": "CFO",                 "faction": "FUND",   "trust0": 1,  "palette": ["#6b6b6b", "#e8b88a", "#2a2a33"]},
+    {"id": "rahman",    "name": "AMIRAH RAHMAN",  "role": "CRO",                 "faction": "DEFEND", "trust0": 0,  "palette": ["#1c1c1c", "#c98d5e", "#1f3a46"]},
+    {"id": "cruz",      "name": "SOFIA CRUZ",     "role": "BU RETAIL",           "faction": "MAKE",   "trust0": 1,  "palette": ["#3a2a20", "#8d5a3b", "#333a2a"]},
+    {"id": "villanueva","name": "DAN VILLANUEVA", "role": "HEAD OF PLATFORM",    "faction": "MAKE",   "trust0": 2,  "palette": ["#101418", "#e8b88a", "#173a30"]},
+    {"id": "aguilar",   "name": "TOMAS AGUILAR",  "role": "VP INFRA - THE RIVAL","faction": "RIVAL",  "trust0": -2, "palette": ["#20242c", "#d9a86e", "#26313d"]}
+  ],
+
+  "bus": [
+    {"id": "retail",    "name": "RETAIL",    "state": "on",     "level": 2},
+    {"id": "lending",   "name": "LENDING",   "state": "pilot",  "level": 1},
+    {"id": "marketing", "name": "MARKETING", "state": "on",     "level": 3},
+    {"id": "treasury",  "name": "TREASURY",  "state": "around", "level": 1},
+    {"id": "grpfin",    "name": "GROUP FIN", "state": "on",     "level": 2},
+    {"id": "ops",       "name": "OPS",       "state": "shadow", "level": 1}
+  ],
+
+  "tracks": [
+    {"id": "governance", "name": "GOVERNANCE",       "levels": ["Spreadsheets & good intentions", "Trust tiers", "Policy as code", "Computed access at scale"],
+     "costs": [{"budget": 200, "crew": 1, "quarters": 1, "pc": 0}, {"budget": 400, "crew": 2, "quarters": 2, "pc": 1}, {"budget": 600, "crew": 3, "quarters": 2, "pc": 2}]},
+    {"id": "identity",   "name": "IDENTITY & ACCESS","levels": ["Access by ticket", "SSO groups", "Computed access", "Agent service identities"],
+     "costs": [{"budget": 150, "crew": 1, "quarters": 1, "pc": 0}, {"budget": 300, "crew": 3, "quarters": 2, "pc": 0}, {"budget": 500, "crew": 3, "quarters": 2, "pc": 1}]},
+    {"id": "paved",      "name": "PAVED ROAD",       "levels": ["Blank repos & tickets", "Templates", "The front door", "Internal sellers"],
+     "costs": [{"budget": 150, "crew": 1, "quarters": 1, "pc": 0}, {"budget": 250, "crew": 2, "quarters": 1, "pc": 0}, {"budget": 350, "crew": 2, "quarters": 2, "pc": 0}]},
+    {"id": "agent",      "name": "AGENT-READINESS",  "levels": ["Not safe to try", "Read-only pilots", "Answers with receipts", "Draft-and-submit"],
+     "costs": [{"budget": 300, "crew": 2, "quarters": 1, "pc": 0}, {"budget": 450, "crew": 2, "quarters": 2, "pc": 1}, {"budget": 600, "crew": 3, "quarters": 2, "pc": 1}],
+     "gates": [{}, {"governance": 2, "identity": 2, "debt": "agent_wrong"}, {"governance": 2, "identity": 3}]}
+  ],
+
+  "mandates": [
+    {"id": "agents_by_q4", "text": "AGENTS ON OUR DATA - DEMO BY Q4",  "due": 4, "check": {"type": "flag", "flag": "agent_demo_ready"}},
+    {"id": "cost_story",   "text": "A COST-REDUCTION STORY BY Q5",     "due": 5, "check": {"type": "attributed", "value": 60}},
+    {"id": "regulator_win","text": "A REGULATOR-EVIDENCE WIN BY Q6",   "due": 6, "check": {"type": "audit", "value": 70}},
+    {"id": "bu_rescue",    "text": "BRING TREASURY IN FROM THE COLD",  "due": 5, "check": {"type": "adoption", "bu": "treasury", "state": "on"}},
+    {"id": "board_quiet",  "text": "NO BOARD SCANDALS - FOUR STRAIGHT","due": 5, "check": {"type": "no_scandals"}}
+  ],
+
+  "quirks": [
+    {"id": "unsupported_hw",  "text": "The warehouse runs on hardware the vendor stopped supporting."},
+    {"id": "load_bearing",    "text": "Marketing's ungoverned env is load-bearing at quarter-end.", "effect": {"shadow_floor": 30}},
+    {"id": "migration_enemy", "text": "The half-finished migration has a named enemy in Infrastructure.", "effect": {"rival": 15}},
+    {"id": "cfcs_laptop",     "text": "Treasury's laptop pipeline was built by the CFO's protege.", "effect": {"trust": {"lim": 1}}},
+    {"id": "bu_reorg",        "text": "Retail is mid-reorg - locked for two quarters."},
+    {"id": "audit_overhang",  "text": "Audit still holds the Q1 masking finding over you.", "effect": {"audit": -20}}
+  ],
+
+  "forks": [
+    {"id": "centralize", "quarter": 1, "title": "CENTRALIZE, OR FEDERATE?",
+     "article": "the weight of the platform",
+     "options": [
+       {"label": "CENTRALIZE - one platform team owns everything",
+        "effects": {"shadow": -10, "trust": {"cruz": -1}, "xp": 10},
+        "seed": null},
+       {"label": "FEDERATE - BUs build, platform owns the seams",
+        "effects": {"shadow": 15, "trust": {"cruz": 1, "aguilar": -1}, "xp": 10},
+        "seed": "shadow_prod"}
+     ]},
+    {"id": "govern_around", "quarter": 2, "title": "GOVERN IN THE PLATFORM, OR AROUND IT?",
+     "article": "the weight of the platform",
+     "options": [
+       {"label": "IN THE PLATFORM - controls run automatically",
+        "effects": {"pc": -3, "budget": -600, "progress": {"governance": 1}, "trust": {"cruz": -1}, "flag": "gov_in"},
+        "seed": null},
+       {"label": "GOVERN AROUND IT - process, review, flexibility",
+        "effects": {"pc": -1, "budget": -150, "trust": {"cruz": 1}, "flag": "gov_around"},
+        "seed": "masking_mismatch"}
+     ]},
+    {"id": "standardize", "quarter": 4, "title": "STANDARDIZE INGESTION, OR LET BUS CHOOSE?",
+     "article": "the weight of the platform",
+     "options": [
+       {"label": "STANDARDIZE - one pattern per source type",
+        "effects": {"budget": -250, "progress": {"paved": 1}, "trust": {"lim": 1, "cruz": -1}},
+        "seed": null},
+       {"label": "LET BUS CHOOSE - speed over uniformity",
+        "effects": {"trust": {"cruz": 1, "lim": -1}, "shadow": 10},
+        "seed": "shadow_prod"}
+     ]},
+    {"id": "foundation_ai", "quarter": 6, "title": "FOUNDATION FIRST, OR AI FIRST?",
+     "article": "the weight of the platform",
+     "options": [
+       {"label": "FOUNDATION FIRST - the argument you have been making",
+        "effects": {"progress": {"governance": 1}, "trust": {"sandoval": -1}, "rival": -10},
+        "seed": null},
+       {"label": "AI FIRST - demo now, foundation later",
+        "effects": {"trust": {"sandoval": 1}, "flag": "ai_hasty"},
+        "seed": "agent_wrong_answer"}
+     ]}
+  ],
+
+  "debts": [
+    {"id": "joined_ownership", "question": "When two BUs join their data, whose sign-off promotes the result?", "fuse": 3},
+    {"id": "agent_wrong",      "question": "When an agent is confidently wrong in a meeting, who fields it?",           "fuse": 3},
+    {"id": "retirement",       "question": "By what process does a table in our estate stop existing?",                 "fuse": 4}
+  ],
+
+  "events": [
+    {"id": "masking_mismatch", "chains": ["govern_around"], "min_q": 3,
+     "title": "AUDIT FINDING: MASKING MISMATCH",
+     "text": "The regulator's paper asks why two BUs mask the same column differently. Your Q2 fork seeded this.",
+     "seed_label": "seeded by Q2: govern around it",
+     "responses": [
+       {"label": "Publish the correction, fund the fix",  "req": null, "effects": {"budget": -100, "audit": 10, "xp": 10}},
+       {"label": "Minimize it in writing",                "req": null, "effects": {"audit": -15, "scandal": 1}},
+       {"label": "Blame the vendor",                      "req": null, "effects": {"audit": -5, "shadow": 5}}
+     ]},
+    {"id": "shadow_prod", "chains": ["centralize_federate", "standardize"], "min_q": 2,
+     "title": "SHADOW ANALYTICS GOES PRODUCTION-CRITICAL",
+     "text": "Marketing's ungoverned env now runs quarter-end. Nobody planned this. Nobody owns it.",
+     "seed_label": "seeded by your BU-speed fork",
+     "responses": [
+       {"label": "Adopt it onto the platform",  "req": null, "effects": {"budget": -200, "adoption": {"marketing": "on"}, "xp": 10}},
+       {"label": "Kill it before it metastasizes", "req": null, "effects": {"trust": {"cruz": -1}, "shadow": 5, "rival": 10}}
+     ]},
+    {"id": "schema_friday", "chains": ["foundation"], "min_q": 3,
+     "title": "02:14 FRIDAY - THE REGULATORY NUMBER MOVED",
+     "text": "A source system changed a schema on a Friday. The gold table feeding the quarterly report moved with it.",
+     "seed_label": "the estate you inherited - unless ownership was answered",
+     "responses": [
+       {"label": "Page the named owner - Priya N. has it", "req": {"debt": "joined_ownership"}, "effects": {"pc": 2, "audit": 10, "xp": 15}},
+       {"label": "Improvise - pull three teams in at 2am", "req": null, "effects": {"audit": -10, "scandal": 1, "xp": -10}}
+     ]},
+    {"id": "cost_meeting", "chains": ["foundation"], "min_q": 2,
+     "title": "THE CFO ASKS WHY DATA COSTS WHAT IT COSTS",
+     "text": "Josephine Lim's meeting. One number on the screen, no names attached to it. The room is waiting for yours.",
+     "seed_label": "the day-one decision you deferred or made",
+     "responses": [
+       {"label": "Show the attribution - your number has names on it", "req": {"track": "governance", "level": 1}, "effects": {"trust": {"lim": 1}, "xp": 10, "points": 10}},
+       {"label": "Deflect - promise attribution next year",            "req": null, "effects": {"trust": {"lim": -1}, "rival": 10}}
+     ]},
+    {"id": "audit_review", "chains": ["foundation"], "min_q": 4,
+     "title": "INTERNAL AUDIT REQUESTS FULL-POPULATION EVIDENCE",
+     "text": "Remi Okafor's office wants to test every transaction. It is a query now - if your platform can answer it.",
+     "seed_label": "the audit posture your governance track bought or skipped",
+     "responses": [
+       {"label": "Produce the evidence - full population", "req": {"track": "governance", "level": 2}, "effects": {"audit": 15, "xp": 15, "points": 15}},
+       {"label": "Deliver a sample and a plan",            "req": null, "effects": {"audit": -10}},
+       {"label": "Stonewall - cite complexity",            "req": null, "effects": {"audit": -20, "scandal": 1}}
+     ]},
+    {"id": "halving", "chains": [], "fixed_q": 5,
+     "title": "THE BOARD CUT THE PLATFORM TEAM IN HALF",
+     "text": "Nobody asks this in the good years. Controls that live in automation survive headcount. Controls that live in people's weeks do not.",
+     "seed_label": "the operating model you chose in Q1",
+     "responses": [
+       {"label": "Protect the templates - the paved road survives", "req": null, "effects": {"trust": {"villanueva": -1}, "crew_loss": 0.5}},
+       {"label": "Protect the controls - governance survives",      "req": null, "effects": {"trust": {"villanueva": 1}, "progress_loss": {"governance": 1}, "crew_loss": 0.5}}
+     ]},
+    {"id": "agent_pilot_request", "chains": ["agent"], "min_q": 2,
+     "title": "THE CEO WANTS THE AGENT PILOT STARTED NOW",
+     "text": "Rico Sandoval's office again. The word 'demonstrable' appears twice.",
+     "seed_label": "the mandate you drew on day one",
+     "responses": [
+       {"label": "Start the pilot - read-only, for now", "req": null, "effects": {"flag": "agent_pilot", "trust": {"sandoval": 1}}},
+       {"label": "Delay one quarter - foundation first", "req": null, "effects": {"trust": {"sandoval": -1}, "xp": -5}}
+     ]},
+    {"id": "agent_wrong_answer", "chains": ["agent"], "min_q": 3,
+     "title": "THE AGENT WAS CONFIDENTLY WRONG IN THE MEETING",
+     "text": "It misquoted churn numbers to the CMO's staff. Confidently. With a chart.",
+     "seed_label": "seeded by the pilot you started before the gates",
+     "responses": [
+       {"label": "Contain it - inspect the receipt, fix the source", "req": {"debt": "agent_wrong"}, "effects": {"audit": 5, "xp": 10}},
+       {"label": "Issue a public correction",                        "req": null, "effects": {"scandal": 1, "trust": {"sandoval": -1}}},
+       {"label": "Say nothing and hope",                             "req": null, "effects": {"scandal": 2, "audit": -10}}
+     ]},
+    {"id": "rival_poach", "chains": ["rival"], "min_q": 3,
+     "title": "AGUILAR OFFERED LENDING A MANAGED ALTERNATIVE",
+     "text": "Real vendor quotes. Cheap. His instance promises 'one throat to choke'. Lending is listening.",
+     "seed_label": "the rival you chose to fight or feed",
+     "responses": [
+       {"label": "Counter-offer - fast-track Lending's front-door ask", "req": null, "effects": {"budget": -150, "rival": -5, "adoption": {"lending": "on"}}},
+       {"label": "Let them look - confidence is a strategy",            "req": null, "effects": {"rival": 15, "trust": {"lim": 1}}}
+     ]},
+    {"id": "instance_launch", "chains": ["rival"], "fixed_q": 3,
+     "title": "AGUILAR'S 'MANAGED INSTANCE' GOES LIVE",
+     "text": "His email to the exec team is one paragraph and every line is true. Consolidation, cost, control.",
+     "seed_label": "the rival storyline - he is not wrong, that is the problem",
+     "responses": [
+       {"label": "Demo offence - show what the paved road ships", "req": {"track": "paved", "level": 2}, "effects": {"rival": -15, "xp": 10, "points": 10}},
+       {"label": "Fund a counter-announcement",                   "req": null, "effects": {"budget": -200, "rival": -5}},
+       {"label": "Nothing to see here",                           "req": null, "effects": {"rival": 10}}
+     ]},
+    {"id": "cruz_bypass", "chains": ["rival"], "min_q": 4,
+     "title": "RETAIL SHIPPED ON A VENDOR WITH A CREDIT CARD",
+     "text": "Sofia Cruz's team needed a two-day answer. The ticket queue said two weeks. The vendor said one.",
+     "seed_label": "the paved road you paved - or did not",
+     "responses": [
+       {"label": "Embrace it - adopt what Retail built",  "req": null, "effects": {"budget": -100, "trust": {"cruz": 1}, "xp": 10, "rival": 10}},
+       {"label": "Crack down - enforce the front door",   "req": null, "effects": {"trust": {"cruz": -1}, "shadow": 10}}
+     ]},
+    {"id": "cfcs_laptop_fails", "chains": ["people"], "min_q": 4,
+     "title": "TREASURY'S LAPTOP PIPELINE DIED AT QUARTER-END",
+     "text": "The nightly reconciliation ran on a laptop. It chose the worst possible night to stop.",
+     "seed_label": "a quirk you drew on day one",
+     "responses": [
+       {"label": "Rebuild it on the platform", "req": null, "effects": {"budget": -150, "adoption": {"treasury": "on"}, "xp": 15}},
+       {"label": "Patch it and look away",     "req": null, "effects": {"shadow": 10}}
+     ]}
+  ],
+
+  "meetings": [
+    {"seat": "torres",    "pc": 1,
+     "give": "Identity L2 computed access by Q4, funded from her incident budget",
+     "get":  "CISO backing for the agent pilot + early warning on SOC findings",
+     "promise": {"text": "Identity L2 by Q4", "check": {"type": "track", "track": "identity", "level": 2}, "due": 4, "effects": {"flag": "ciso_backing"}},
+     "effects": {"trust": {"torres": 1}}},
+    {"seat": "lim",       "pc": 1,
+     "give": "Showback first - every team sees its number before the board does",
+     "get":  "A one-time budget uplift of $250k and her vote against chargeback",
+     "promise": {"text": "Attribution >=50% by Q3", "check": {"type": "attributed", "value": 50}, "due": 3, "effects": {"budget": 250}},
+     "effects": {"trust": {"lim": 1}}},
+    {"seat": "rahman",    "pc": 1,
+     "give": "Lineage from the regulatory report to source by Q5",
+     "get":  "Risk acceptance for your pilots - the regulator hears it from her first",
+     "promise": {"text": "Governance L2 by Q5", "check": {"type": "track", "track": "governance", "level": 2}, "due": 5, "effects": {"audit": 15}},
+     "effects": {"trust": {"rahman": 1}}},
+    {"seat": "cruz",      "pc": 1,
+     "give": "Templates for her top source type by Q3",
+     "get":  "Retail adopts - and brings its decision volume with it",
+     "promise": {"text": "Paved road L1 by Q3", "check": {"type": "track", "track": "paved", "level": 1}, "due": 3, "effects": {"adoption": {"retail": "on"}}},
+     "effects": {"trust": {"cruz": 1}}},
+    {"seat": "villanueva","pc": 1,
+     "give": "A promise: at the halving, the team's work is protected",
+     "get":  "His once-per-game unprompted vouch, banked now",
+     "promise": {"text": "Team protected at the halving (Q5)", "check": {"type": "flag", "flag": "team_protected"}, "due": 5, "effects": {"flag": "vouch_banked"}},
+     "effects": {"trust": {"villanueva": 1}}},
+    {"seat": "sandoval",  "pc": 2,
+     "give": "A demo-prep plan he can show the board next quarter",
+     "get":  "He buys you one quarter of runway on the agent clock",
+     "promise": {"text": "Agent L1 by the clock minus one", "check": {"type": "track", "track": "agent", "level": 1}, "due": 3, "effects": {"clock_bonus": 1}},
+     "effects": {"trust": {"sandoval": 1}}}
+  ],
+
+  "foreshadow": [
+    "The CFO has scheduled a cost review. Attribution decides whether it is a review or an argument.",
+    "The CEO said the word 'agents' twice in one meeting. The clock is becoming a promise.",
+    "Audit has not forgotten the masking finding. It will reappear in a quarter you do not choose.",
+    "Aguilar's vendor quotes are real. Lending's CIO took the meeting.",
+    "Retail's next sprint plan has a line item that is not your platform."
+  ],
+
+  "endings": [
+    {"id": "agent_ready",        "title": "THE AGENT-READY CDAO",        "check": {"type": "track", "track": "agent", "level": 3}},
+    {"id": "regulators_favourite","title": "THE REGULATOR'S FAVOURITE",  "check": {"type": "audit", "value": 75}},
+    {"id": "survivor",           "title": "THE SURVIVOR",               "check": {}}
+  ]
+}

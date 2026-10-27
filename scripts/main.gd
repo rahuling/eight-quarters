@@ -34,6 +34,7 @@ var intro_skip := false
 var intro_hint: Label = null
 var intro_run := 0
 var overlay: Control = null
+var desk_mode := true
 
 func _ready() -> void:
 	bg_rect = ColorRect.new()
@@ -412,7 +413,7 @@ func _rebuild_council(box: VBoxContainer) -> void:
 		var t: int = g.trust[s["id"]]
 		var line := "%s  %s" % [s["name"], s["role"]]
 		v.add_child(_label(line, 14, COL_OAT))
-		v.add_child(_label("trust %s  (%+d)" % [_trust_pips(t), t], 12, COL_MUT))
+		v.add_child(_label("trust %s  (%+d)  wants: %s" % [_trust_pips(t), t, s.get("want", "")], 12, COL_MUT))
 	p.add_child(v)
 	box.add_child(p)
 
@@ -490,53 +491,172 @@ func _bar(v: int) -> String:
 		out += "#" if i < filled else "."
 	return out
 
-func _rebuild_actions(box: VBoxContainer) -> void:
+func _face(hair: Color, skin: Color, suit: Color) -> TextureRect:
+	var img := Image.create(8, 8, false, Image.FORMAT_RGBA8)
+	for x in range(1, 7):
+		img.set_pixel(x, 0, hair)
+	for y in [1]:
+		for x in range(0, 8):
+			img.set_pixel(x, y, hair)
+	for y in [2, 3, 4]:
+		for x in range(0, 8):
+			img.set_pixel(x, y, skin)
+	img.set_pixel(2, 2, Color(0.02, 0.07, 0.1))
+	img.set_pixel(5, 2, Color(0.02, 0.07, 0.1))
+	for y in [5, 6, 7]:
+		for x in range(0, 8):
+			img.set_pixel(x, y, suit)
+	img.set_pixel(3, 6, COL_OAT)
+	img.set_pixel(4, 6, COL_OAT)
+	var tr := TextureRect.new()
+	tr.texture = ImageTexture.create_from_image(img)
+	tr.custom_minimum_size = Vector2(44, 44)
+	tr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	tr.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	tr.stretch_mode = TextureRect.STRETCH_SCALE
+	return tr
+
+func _seat_face(seat: Dictionary) -> TextureRect:
+	var pal: Array = seat.get("palette", ["#333333", "#d9a86e", "#173a46"])
+	return _face(Color(str(pal[0])), Color(str(pal[1])), Color(str(pal[2])))
+
+func _set_desk() -> void:
+	desk_mode = true
+	rebuild_game()
+
+func _set_estate() -> void:
+	desk_mode = false
+	rebuild_game()
+
+func _rebuild_desk(box: VBoxContainer) -> void:
 	var g := GameState
-	var p := _panel()
-	var v := _vbox(6)
-	v.add_child(_label("THIS QUARTER", 8, COL_AMBER, true))
-	# fork
+	var tp := _panel()
+	var tv := _vbox(8)
+	tv.add_child(_label("AT THE TABLE", 8, COL_AMBER, true))
+	var row := _hbox(10)
+	for s in g.deck["seats"]:
+		var c := _vbox(3)
+		c.alignment = BoxContainer.ALIGNMENT_CENTER
+		c.add_child(_seat_face(s))
+		var nm := _label(str(s["name"]), 9, COL_OAT, true)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(nm)
+		var want := _label(str(s["want"]), 12, COL_MUT)
+		want.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		want.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		want.custom_minimum_size = Vector2(120, 0)
+		c.add_child(want)
+		var t: int = g.trust[s["id"]]
+		var tpl := _label("trust %s" % _trust_pips(t), 11, COL_GREEN if t > 0 else (COL_LAVA if t < 0 else COL_MUT))
+		tpl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(tpl)
+		row.add_child(c)
+	tv.add_child(row)
+	tp.add_child(tv)
+	box.add_child(tp)
+	var ap := _panel()
+	var v := _vbox(8)
+	v.add_child(_label("THIS QUARTER'S AGENDA - %s" % g.mandate["text"], 8, COL_AMBER, true))
+	var items := 0
 	for f in g.deck["forks"]:
 		if f["quarter"] == g.quarter and not g.fork_done.has(f["id"]):
-			v.add_child(_label("DECISION REQUIRED", 9, COL_LAVA, true))
-			v.add_child(_label("FORK: %s" % f["title"], 14, COL_OAT, true))
-			var open_row := _hbox(10)
+			items += 1
+			var card := _panel()
+			var cv := _vbox(6)
+			card.add_child(cv)
+			cv.add_child(_label("DECISION REQUIRED - THE BOARD'S STRUCTURAL QUESTION", 9, COL_LAVA, true))
+			cv.add_child(_label(f["title"], 15, COL_OAT, true))
+			var dl := _label(str(f.get("lesson", "")), 13, COL_TXT())
+			dl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			cv.add_child(dl)
 			var f_ref: Dictionary = f
-			open_row.add_child(_button("OPEN DECISION >>", 10, func(): _decision_view(f_ref), COL_LAVA))
-			open_row.add_child(_label("both options, full effects and seeded consequences shown", 12, COL_MUT))
-			v.add_child(open_row)
-	# meeting
+			cv.add_child(_button("OPEN THE DECISION >>  (both options, effects and consequences shown)", 10, func(): _decision_view(f_ref), COL_LAVA))
+			v.add_child(card)
+	if not g.current_event.is_empty():
+		items += 1
+		var mcard := _panel()
+		var mv := _vbox(6)
+		mcard.add_child(mv)
+		mv.add_child(_label("MEMO ON YOUR DESK - %s" % g.current_event["title"], 9, COL_LAVA, true))
+		var ml := _label(str(g.current_event["text"]), 13, COL_TXT())
+		ml.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		mv.add_child(ml)
+		mv.add_child(_button("OPEN THE MEMO >>  (read it, choose your response)", 10, func(): rebuild_game(), COL_AMBER))
+		v.add_child(mcard)
 	if not g.meeting_used:
 		var deal: Dictionary = g.featured_meeting()
 		if not deal.is_empty():
-			v.add_child(_label("FEATURED MEETING: %s" % deal["seat"].to_upper(), 14, COL_BLUE, true))
-			v.add_child(_label("you commit: %s" % deal["give"], 13, COL_TXT()))
-			v.add_child(_label("you get:    %s" % deal["get"], 13, COL_TXT()))
+			items += 1
+			var seat_d: Dictionary = {}
+			for s in g.deck["seats"]:
+				if s["id"] == deal["seat"]:
+					seat_d = s
+			var card := _panel()
+			var cv := _vbox(6)
+			card.add_child(cv)
+			cv.add_child(_label("REQUEST: %s WANTS 30 MINUTES" % str(seat_d.get("name", deal["seat"])).to_upper(), 9, COL_BLUE, true))
+			var give := _label("they ask: %s" % deal["give"], 13, COL_TXT())
+			give.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			cv.add_child(give)
+			var getl := _label("you get: %s" % deal["get"], 13, COL_TXT())
+			getl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			cv.add_child(getl)
 			var pr: Dictionary = deal["promise"]
-			var pl := _label("PROMISE: %s - due Q%d. %s" % [pr["text"], pr["due"], _promise_miss_text(pr)], 12, COL_MUT)
+			var pl := _label("if you seal it: %s - due Q%d. %s" % [pr["text"], pr["due"], _promise_miss_text(pr)], 12, COL_MUT)
 			pl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-			v.add_child(pl)
-			var gain := ", ".join(_fx_summary(deal["effects"]))
-			if gain != "":
-				var gl := _label("also gains: " + gain, 12, COL_GREEN)
-				gl.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-				v.add_child(gl)
+			cv.add_child(pl)
 			var mrow := _hbox(10)
 			mrow.add_child(_button("SEAL IT (PC %d)" % deal["pc"], 9, func(): _do_meeting(deal), COL_GREEN))
-			mrow.add_child(_label("walk away: nothing promised, nothing owed", 12, COL_MUT))
-			v.add_child(mrow)
-	else:
-		v.add_child(_label("Meeting slot used this quarter.", 12, COL_MUT))
-	# pending event - arrives as a paper memo modal
-	if not g.current_event.is_empty():
-		v.add_child(_label("A memo has arrived - see the paper on your desk.", 13, COL_AMBER))
-	# end quarter
-	var end_row := _hbox(10)
+			mrow.add_child(_label("or walk away - nothing promised, nothing owed", 12, COL_MUT))
+			cv.add_child(mrow)
+			v.add_child(card)
+	for d in g.deck["debts"]:
+		var dd: Dictionary = g.debts[d["id"]]
+		if not dd["answered"]:
+			items += 1
+			var dcard := _panel()
+			var dv := _vbox(5)
+			dcard.add_child(dv)
+			dv.add_child(_label("OPEN QUESTION - fuse %d quarter(s)" % dd["fuse"], 9, COL_AMBER, true))
+			var ql := _label(str(d["question"]), 13, COL_TXT())
+			ql.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+			dv.add_child(ql)
+			var d_id: String = d["id"]
+			dv.add_child(_button("ANSWER IT (1 PC + meeting slot) - or it fires as a crisis", 9, func(): _do_debt(d_id), COL_AMBER))
+			v.add_child(dcard)
+	if items == 0:
+		v.add_child(_label("A quiet quarter. Use it - the consequences never are.", 14, COL_MUT))
+	v.add_child(HSeparator.new())
+	var end_row := _hbox(12)
 	end_row.add_child(_button("END QUARTER >>", 10, _do_end_quarter, COL_LAVA))
-	end_row.add_child(_label("decisions changed so far: %d" % g.decisions_changed, 13, COL_MUT))
+	end_row.add_child(_label("decisions changed so far: %d - your score AND your budget leverage" % g.decisions_changed, 12, COL_MUT))
 	v.add_child(end_row)
-	p.add_child(v)
-	box.add_child(p)
+	ap.add_child(v)
+	box.add_child(ap)
+
+func _rebuild_estate(box: VBoxContainer) -> void:
+	var g := GameState
+	var content := _hbox(10)
+	var left := _vbox(10)
+	var right := _vbox(10)
+	var center := _vbox(10)
+	left.custom_minimum_size = Vector2(300, 0)
+	right.custom_minimum_size = Vector2(250, 0)
+	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	content.add_child(left)
+	content.add_child(center)
+	content.add_child(right)
+	box.add_child(content)
+	_rebuild_council(left)
+	_rebuild_platform(center)
+	_rebuild_right(right)
+	_autowrap_deep(left)
+	_autowrap_deep(center)
+	_autowrap_deep(right)
+	var end_row := _hbox(12)
+	end_row.add_child(_button("END QUARTER >>", 10, _do_end_quarter, COL_LAVA))
+	end_row.add_child(_label("decisions changed so far: %d" % g.decisions_changed, 12, COL_MUT))
+	box.add_child(end_row)
 
 func _clear_overlay() -> void:
 	if overlay != null and is_instance_valid(overlay):
@@ -718,24 +838,18 @@ func _close_help() -> void:
 func _populate_game() -> void:
 	var g := GameState
 	_rebuild_hud(game_box)
-	var content := _hbox(10)
-	var left := _vbox(10)
-	var center := _vbox(10)
-	var right := _vbox(10)
-	left.custom_minimum_size = Vector2(225, 0)
-	right.custom_minimum_size = Vector2(250, 0)
-	center.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	content.add_child(left)
-	content.add_child(center)
-	content.add_child(right)
-	game_box.add_child(content)
-	_rebuild_council(left)
-	_rebuild_platform(center)
-	_rebuild_right(right)
-	_rebuild_actions(game_box)
-	_autowrap_deep(left)
-	_autowrap_deep(right)
-	_autowrap_deep(center)
+	var tabs := _hbox(8)
+	tabs.add_child(_button("YOUR DESK", 9, _set_desk, COL_OAT if desk_mode else COL_MUT))
+	tabs.add_child(_button("THE ESTATE", 9, _set_estate, COL_OAT if not desk_mode else COL_MUT))
+	var dcl := _label("decisions changed: %d" % g.decisions_changed, 12, COL_MUT)
+	dcl.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	dcl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	tabs.add_child(dcl)
+	game_box.add_child(tabs)
+	if desk_mode:
+		_rebuild_desk(game_box)
+	else:
+		_rebuild_estate(game_box)
 	if not g.current_event.is_empty():
 		_event_modal(game_layer)
 	if not g.game_over.is_empty():
@@ -942,6 +1056,9 @@ func _smoke(deck: Dictionary) -> void:
 	print("SMOKE: starting run")
 	start_game(deck, 2026)
 	await _shot("game")
+	_set_estate()
+	await _shot("estate")
+	_set_desk()
 	var guard := 0
 	while GameState.game_over.is_empty() and guard < 40:
 		guard += 1

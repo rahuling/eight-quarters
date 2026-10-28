@@ -238,84 +238,109 @@ func _show_intro(deck: Dictionary) -> void:
 	intro_layer.add_child(skipb)
 	_play_intro(body, deck, my_run)
 
-func _intro_gate(t: float) -> void:
+func _intro_gate(hint_text: String = ">> CLICK TO CONTINUE <<") -> void:
 	intro_clicked = false
 	if intro_hint:
+		intro_hint.text = hint_text
 		intro_hint.visible = true
-	var elapsed := 0.0
-	while elapsed < t and not intro_clicked:
+	if OS.get_environment("EQ_SMOKE") == "1":
+		return
+	while not intro_clicked:
 		await get_tree().process_frame
-		elapsed += get_process_delta_time()
 	if intro_hint:
 		intro_hint.visible = false
 
-func _play_intro(body: VBoxContainer, deck: Dictionary, my_run: int) -> void:
-	var smoke := OS.get_environment("EQ_SMOKE") == "1"
-	var gate_t := 0.2 if smoke else 5.0
-	var alive := func() -> bool: return not intro_skip and my_run == intro_run and is_instance_valid(body)
-	# beat 1 - the bank
+func _intro_beat_title(body: VBoxContainer) -> void:
 	_clear(body)
-	body.add_child(_center_label("SOMEWHERE IN THE REGION", 10, COL_LAVA, true))
-	body.add_child(_center_label("A LARGE BANK", 30, COL_OAT, true))
-	body.add_child(_center_label("IN SOUTHEAST ASIA", 30, COL_OAT, true))
-	var sky := _hbox(6)
-	sky.alignment = BoxContainer.ALIGNMENT_CENTER
-	for i in 5:
-		var r := ColorRect.new()
-		r.color = Color("123540")
-		r.custom_minimum_size = Vector2(60 + (i * 37) % 80, 90 + (i * 53) % 120)
-		r.size_flags_vertical = Control.SIZE_SHRINK_END
-		sky.add_child(r)
-	body.add_child(sky)
-	body.add_child(_center_label("Eight thousand people. Sixty systems. One very old warehouse.", 18, COL_MUT))
-	await _intro_gate(gate_t)
-	if not alive.call(): return
-	# beat 2 - the inheritance
+	var sp := Control.new()
+	sp.custom_minimum_size = Vector2(0, 40)
+	body.add_child(sp)
+	body.add_child(_center_label("EIGHT QUARTERS", 34, COL_OAT, true))
+	body.add_child(_center_label("THE WEIGHT OF THE PLATFORM", 10, COL_AMBER, true))
+	body.add_child(_center_label("A game about running the data platform of a large bank.", 17, COL_MUT))
+	sp = Control.new()
+	sp.custom_minimum_size = Vector2(0, 30)
+	body.add_child(sp)
+
+func _intro_beat_premise(body: VBoxContainer) -> void:
 	_clear(body)
-	body.add_child(_center_label("WHAT YOU INHERIT", 10, COL_LAVA, true))
-	for s in ["A data warehouse, eight years old. The regulator expects its reports every quarter.",
-	"An analytics env Marketing stood up on a different cloud. Ungoverned. Production-critical.",
-	"A half-finished migration. The last CTO started it. Nobody remembers why.",
-	"And treasury's nightly reconciliation - running on someone's laptop."]:
-		body.add_child(_center_label(s, 17, COL_TXT()))
-	await _intro_gate(gate_t)
-	if not alive.call(): return
-	# beat 3 - the offer
+	body.add_child(_center_label("THE PREMISE", 10, COL_LAVA, true))
+	body.add_child(_center_label("You are the new Head of Data", 26, COL_OAT, true))
+	body.add_child(_center_label("at a large bank in Southeast Asia.", 20, COL_TXT()))
+	body.add_child(_center_label("You inherit the mess: an eight-year-old warehouse, shadow platforms,", 17, COL_MUT))
+	body.add_child(_center_label("a half-finished migration - and a CEO who wants AI. Now.", 17, COL_MUT))
+	body.add_child(_center_label("Your job: build one platform the whole company chooses to run on -", 18, COL_OAT))
+	body.add_child(_center_label("and keep it, and yourself, alive for eight quarters.", 18, COL_OAT))
+
+func _intro_beat_people(body: VBoxContainer, deck: Dictionary) -> void:
 	_clear(body)
-	body.add_child(_center_label("The CEO has a job for you.", 20, COL_TXT()))
-	body.add_child(_center_label("HEAD OF DATA", 32, COL_OAT, true))
-	body.add_child(_center_label("Your term: EIGHT QUARTERS. Two fiscal years, one sitting.", 18, COL_MUT))
-	body.add_child(_center_label("Your budget: whatever survives the board.", 18, COL_MUT))
-	await _intro_gate(gate_t)
-	if not alive.call(): return
-	# beat 4 - the stakes, explicit
+	body.add_child(_center_label("THE PEOPLE AT YOUR TABLE", 10, COL_LAVA, true))
+	var row := _hbox(8)
+	row.alignment = BoxContainer.ALIGNMENT_CENTER
+	for s in deck["seats"]:
+		var c := _vbox(3)
+		c.alignment = BoxContainer.ALIGNMENT_CENTER
+		c.add_child(_seat_face(s))
+		var nm := _label(str(s["name"]), 8, COL_OAT, true)
+		nm.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(nm)
+		var rl := _label(str(s["role"]), 11, COL_MUT)
+		rl.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		c.add_child(rl)
+		row.add_child(c)
+	body.add_child(row)
+	body.add_child(_center_label("Everyone wants something. Everyone is right. That is the problem.", 18, COL_OAT))
+	body.add_child(_center_label("Tomas Aguilar wants your platform moved under IT. His meter fills all game -", 16, COL_MUT))
+	body.add_child(_center_label("at 100, the board gives him your job.", 16, COL_MUT))
+
+func _intro_beat_stakes(body: VBoxContainer) -> void:
 	_clear(body)
-	body.add_child(_center_label("THE STAKES - WHAT YOU CAN LOSE", 10, COL_LAVA, true))
-	body.add_child(_center_label("YOUR JOB - two board scandals with your standing at zero.", 16, COL_AMBER))
-	body.add_child(_center_label("YOUR BUDGET - adoption below one BU, and the cuts come for you.", 16, COL_AMBER))
-	body.add_child(_center_label("THE PLATFORM - Aguilar's meter at 100%%, and the remit is his.", 16, COL_AMBER))
-	body.add_child(_center_label("THE AGENTS - one scandal you cannot contain ends the program.", 16, COL_AMBER))
-	body.add_child(_center_label("The mandate clock is real. Miss it and it is a scandal.", 16, COL_MUT))
-	await _intro_gate(gate_t)
-	if not alive.call(): return
-	# beat 5 - the rules, explicit design points
+	body.add_child(_center_label("THE STAKES - LOSE ANY OF THESE AND YOU ARE OUT", 10, COL_LAVA, true))
+	body.add_child(_center_label("YOUR JOB - two board scandals with your standing at zero.", 17, COL_AMBER))
+	body.add_child(_center_label("YOUR BUDGET - if every business unit abandons the platform.", 17, COL_AMBER))
+	body.add_child(_center_label("YOUR PLATFORM - if Aguilar's meter reaches 100.", 17, COL_AMBER))
+	body.add_child(_center_label("THE AGENTS - a scandal you cannot contain ends the program.", 17, COL_AMBER))
+	body.add_child(_center_label("All of it is visible on your screen at all times.", 16, COL_MUT))
+
+func _intro_beat_rules(body: VBoxContainer) -> void:
 	_clear(body)
 	body.add_child(_center_label("THE FIVE RULES OF THIS WORLD", 10, COL_LAVA, true))
-	body.add_child(_center_label("1. Foundation before AI - the gates are real.", 16, COL_OAT))
-	body.add_child(_center_label("2. Adoption is a series of purchases - BUs choose you.", 16, COL_OAT))
-	body.add_child(_center_label("3. Ownership reaches the tables - or 2am owns you.", 16, COL_OAT))
-	body.add_child(_center_label("4. Blame costs trust, not capital - keep the ledger true.", 16, COL_OAT))
-	body.add_child(_center_label("5. Decisions changed is the only score.", 16, COL_OAT))
-	await _intro_gate(gate_t)
-	if not alive.call(): return
-	# beat 6 - the cast
+	body.add_child(_center_label("1. Foundation before AI - the gates are real.", 17, COL_OAT))
+	body.add_child(_center_label("2. Adoption is a series of purchases - teams choose you.", 17, COL_OAT))
+	body.add_child(_center_label("3. Ownership reaches the tables - or 2am owns you.", 17, COL_OAT))
+	body.add_child(_center_label("4. Blame costs trust, not capital - keep the ledger true.", 17, COL_OAT))
+	body.add_child(_center_label("5. Decisions changed is the only score.", 17, COL_OAT))
+
+func _intro_beat_how(body: VBoxContainer) -> void:
 	_clear(body)
-	body.add_child(_center_label("SIXTEEN SEATS AT THE TABLE", 10, COL_AMBER, true))
-	body.add_child(_center_label("A CEO who wants agents. A CISO who will veto them. A CFO who owns your budget.", 17, COL_TXT()))
-	body.add_child(_center_label("A CRO who owns the regulator. A BU lead who will route around you.", 17, COL_TXT()))
-	body.add_child(_center_label("And Tomas Aguilar, who thinks the platform should be his - and is not wrong.", 17, COL_AMBER))
-	body.add_child(_center_label("Some will save you. Some will end you. All of them are right.", 18, COL_OAT))
-	await _intro_gate(gate_t)
+	body.add_child(_center_label("HOW IT WORKS", 10, COL_LAVA, true))
+	body.add_child(_center_label("Each quarter you get one meeting, one big decision,", 18, COL_OAT))
+	body.add_child(_center_label("a budget to spend on the platform - and whatever lands on your desk.", 18, COL_OAT))
+	body.add_child(_center_label("Then you end the quarter and live with what happens.", 18, COL_OAT))
+	body.add_child(_center_label("Eight times. Then the board grades you.", 20, COL_AMBER, true))
+
+func _play_intro(body: VBoxContainer, deck: Dictionary, my_run: int) -> void:
+	var smoke := OS.get_environment("EQ_SMOKE") == "1"
+	var alive := func() -> bool: return not intro_skip and my_run == intro_run and is_instance_valid(body)
+	_intro_beat_title(body)
+	await _intro_gate(">> CLICK TO BEGIN <<")
+	if not alive.call(): return
+	_intro_beat_premise(body)
+	await _intro_gate()
+	if not alive.call(): return
+	_intro_beat_people(body, deck)
+	await _intro_gate()
+	if smoke:
+		await _shot("people")
+	if not alive.call(): return
+	_intro_beat_stakes(body)
+	await _intro_gate()
+	if not alive.call(): return
+	_intro_beat_rules(body)
+	await _intro_gate()
+	if not alive.call(): return
+	_intro_beat_how(body)
+	await _intro_gate(">> CLICK TO TAKE THE JOB <<")
 	if not alive.call(): return
 	_show_title(deck)
 
